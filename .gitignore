@@ -2,7 +2,6 @@ node_modules
 npm-debug.log*
 pnpm-lock.yaml
 yarn.lock
-.env
 uploads/temp
 uploads/archives
 uploads/test-temp
