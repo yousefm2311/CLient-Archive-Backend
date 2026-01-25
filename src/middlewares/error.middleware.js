@@ -36,6 +36,32 @@ const errorHandler = (err, req, res, next) => {
     message = err.message || 'Invalid file type';
   }
 
+  const requestId = req.requestId;
+  const logPayload = {
+    requestId,
+    method: req.method,
+    path: req.originalUrl,
+    status,
+    code,
+    message,
+  };
+
+  if (details) {
+    logPayload.details = details;
+  }
+
+  if (status >= 500) {
+    // eslint-disable-next-line no-console
+    console.error('[archive-error]', logPayload);
+    if (err?.stack) {
+      // eslint-disable-next-line no-console
+      console.error(err.stack);
+    }
+  } else {
+    // eslint-disable-next-line no-console
+    console.warn('[archive-error]', logPayload);
+  }
+
   res.status(status).json({
     error: {
       message,

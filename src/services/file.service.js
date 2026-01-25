@@ -341,6 +341,7 @@ const ensureWithinBase = (base, targetPath) => {
 
 const withUploadContext = (req, res, next) => {
   if (!req.requestId) req.requestId = uuidv4();
+  res.setHeader("x-request-id", req.requestId);
   next();
 };
 
@@ -608,6 +609,7 @@ const cleanupTempFolder = async (clientId, requestId) => {
     path.join(tempBaseAbsolute, clientId, requestId),
   );
 
+  
   try {
     await fsp.rm(tempFolder, {
       recursive: true,

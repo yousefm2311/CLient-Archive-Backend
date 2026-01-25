@@ -49,16 +49,28 @@ const validateArchiveId = (archiveId) => {
 const uploadArchive = asyncHandler(async (req, res) => {
   const clientId = validateClientId(req.params.clientId);
   const files = req.files || [];
+  const requestId = req.requestId;
 
   if (!files.length) {
+    // eslint-disable-next-line no-console
+    console.warn('[archive-upload] no files', { requestId, clientId });
     const error = new Error('No files uploaded');
     error.status = 400;
     error.code = 'NO_FILES';
     throw error;
   }
 
+  const startTime = Date.now();
   const archiveId = new mongoose.Types.ObjectId();
   const totalOriginalBytes = files.reduce((sum, file) => sum + (file.size || 0), 0);
+
+  // eslint-disable-next-line no-console
+  console.info('[archive-upload] start', {
+    requestId,
+    clientId,
+    fileCount: files.length,
+    totalOriginalBytes,
+  });
 
   const originalFiles = files.map((file) => ({
     originalName: file.originalname,
@@ -71,34 +83,57 @@ const uploadArchive = asyncHandler(async (req, res) => {
   try {
     const filesToArchive = await maybeOptimizeFiles(files, clientId, req.requestId);
     archiveResult = await archiveFiles({ clientId, archiveId, files: filesToArchive });
+
+    const record = await createArchiveRecord({
+      archiveId,
+      clientId,
+      archivePath: archiveResult.archivePath,
+      totalOriginalBytes,
+      archivedBytes: archiveResult.archivedBytes,
+      originalFiles,
+    });
+
+    const savingsBytes = totalOriginalBytes - archiveResult.archivedBytes;
+    const savingsPercent = percent(savingsBytes, totalOriginalBytes);
+    const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
+    const archiveDownloadUrl = `${baseUrl}/api/archives/${record.archiveId}/download`;
+
+    // eslint-disable-next-line no-console
+    console.info('[archive-upload] success', {
+      requestId,
+      clientId,
+      archiveId: record.archiveId,
+      fileCount: files.length,
+      totalOriginalBytes,
+      archivedBytes: archiveResult.archivedBytes,
+      durationMs: Date.now() - startTime,
+    });
+
+    return res.status(201).json({
+      clientId,
+      archiveId: record.archiveId,
+      fileCount: files.length,
+      totalOriginalBytes,
+      archivedBytes: archiveResult.archivedBytes,
+      savingsBytes,
+      savingsPercent,
+      archiveDownloadUrl,
+    });
+  } catch (error) {
+    // eslint-disable-next-line no-console
+    console.error('[archive-upload] failed', {
+      requestId,
+      clientId,
+      fileCount: files.length,
+      totalOriginalBytes,
+      durationMs: Date.now() - startTime,
+      error: error?.message || String(error),
+      code: error?.code,
+    });
+    throw error;
   } finally {
     await cleanupTempFolder(clientId, req.requestId);
   }
-
-  const record = await createArchiveRecord({
-    archiveId,
-    clientId,
-    archivePath: archiveResult.archivePath,
-    totalOriginalBytes,
-    archivedBytes: archiveResult.archivedBytes,
-    originalFiles,
-  });
-
-  const savingsBytes = totalOriginalBytes - archiveResult.archivedBytes;
-  const savingsPercent = percent(savingsBytes, totalOriginalBytes);
-  const baseUrl = process.env.BASE_URL || `http://localhost:${process.env.PORT || 5000}`;
-  const archiveDownloadUrl = `${baseUrl}/api/archives/${record.archiveId}/download`;
-
-  res.status(201).json({
-    clientId,
-    archiveId: record.archiveId,
-    fileCount: files.length,
-    totalOriginalBytes,
-    archivedBytes: archiveResult.archivedBytes,
-    savingsBytes,
-    savingsPercent,
-    archiveDownloadUrl,
-  });
 });
 
 const getArchive = asyncHandler(async (req, res) => {
