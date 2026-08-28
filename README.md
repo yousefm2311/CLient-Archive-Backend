@@ -1,72 +1,151 @@
-# Archive Backend
+<div align="center">
+  <img src="https://img.icons8.com/?size=100&id=46860&format=png&color=000000" alt="Archive Logo" width="120" />
 
-Express + MongoDB service for uploading up to 10 PDF files, archiving them into a single ZIP, and storing metadata for savings analysis.
+  # 📦 Client Archiver Backend 
 
-## Setup
-- Prereqs: Node.js (latest LTS), MongoDB running locally, npm.
-- Install deps: `npm install`
-- Copy env: `cp .env.example .env` (adjust as needed)
-- Run MongoDB locally (example): `mongod --dbpath ./data/db --port 27017`
-- Start dev server: `npm run dev` (or `npm start`)
+  **نظام خلفي (Backend) متكامل مبني بـ Express.js لرفع ملفات الـ PDF، ضغطها باستخدام Ghostscript، وحفظها كأرشيف ZIP مع حساب نسبة توفير مساحة التخزين.**
 
-## Environment
-- `PORT` (default 5000)
-- `MONGO_URI` e.g., `mongodb://127.0.0.1:27017/client_archiver`
-- `BASE_URL` e.g., `http://localhost:5000`
-- `UPLOAD_TEMP_DIR` default `uploads/temp`
-- `UPLOAD_ARCHIVE_DIR` default `uploads/archives`
-- `MAX_FILES` default `10`
-- `MAX_FILE_SIZE_MB` default `50` (per file)
-- `PDF_OPTIMIZE` (optional, default `false`) — set to `true` to run Ghostscript optimization before zipping.
-- `PDF_GS_PATH` (optional, default `gs`) — path to Ghostscript binary.
-- `PDF_GS_PRESET` (default `screen`) — Ghostscript preset (`screen`, `ebook`, etc.).
-- `PDF_GS_COLOR_DPI` / `PDF_GS_GRAY_DPI` / `PDF_GS_MONO_DPI` — downsample resolutions (default 96/96/300).
+  [![Node.js](https://img.shields.io/badge/Node.js-%2343853D.svg?style=for-the-badge&logo=node.js&logoColor=white)](https://nodejs.org/)
+  [![Express.js](https://img.shields.io/badge/Express.js-%23404d59.svg?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com/)
+  [![MongoDB](https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
+  [![Ghostscript](https://img.shields.io/badge/Ghostscript-Ghost-lightgrey?style=for-the-badge)](#)
+</div>
 
-## Key Endpoints (base: `/api/archives`)
-- `POST /:clientId/upload` — multipart `files` (up to 10 PDFs). Response: `clientId, archiveId, totalOriginalBytes, archivedBytes, savingsBytes, savingsPercent, archiveDownloadUrl, fileCount`.
-- `GET /:archiveId` — archive metadata.
-- `GET /:archiveId/download` — streams the ZIP.
-- `GET /client/:clientId` — list client archives (latest first).
-- `DELETE /:archiveId` — remove archive file + record.
+---
 
-Rate limit: upload endpoint capped at 30 requests per 10 minutes per IP. Only PDFs (mimetype + `.pdf` extension) up to 50MB each by default.
+## 📖 نظرة عامة (Overview)
 
-## Storage Behavior
-- Incoming PDFs land in `uploads/temp/<clientId>/<requestId>/` via Multer disk storage.
-- Archiving streams files into one ZIP at `uploads/archives/<clientId>/<archiveId>.zip` (no full-file buffering).
-- After ZIP is created, the temp folder is removed.
-- MongoDB stores archive metadata including original file sizes, archived size, and relative archive path (no absolute paths returned).
+هذا المشروع عبارة عن واجهة برمجة تطبيقات (API) احترافية مصممة لاستقبال ملفات الـ PDF من العملاء، التأكد من صحتها وحمايتها، ومن ثم تقليل حجمها (Optimization) وتجميعها في ملف مضغوط (ZIP Archive). النظام يقوم أيضاً بتسجيل كافة بيانات العملية في قاعدة بيانات **MongoDB** لتحليل المساحة الموفرة (Storage Savings) بعد الضغط.
 
-## Curl Examples
-- Upload multiple PDFs:
-  ```bash
-  curl -X POST http://localhost:5000/api/archives/ACME/upload \
-    -F "files=@/path/to/file1.pdf" \
-    -F "files=@/path/to/file2.pdf"
-  ```
-- Download ZIP:
-  ```bash
-  curl -L -o ACME-archive.zip http://localhost:5000/api/archives/<archiveId>/download
-  ```
+---
 
-## Postman Quick Notes
-- Set request type to `POST` with `form-data` body; key `files` marked as `File`, add up to 10 entries.
-- For download, set request to `GET` and enable "Send and Download".
-- Base URL environment: `{{baseUrl}} = http://localhost:5000` then use `{{baseUrl}}/api/archives/{{archiveId}}/download`.
+## ✨ المميزات الأساسية (Key Features)
 
-## Testing
-- Lightweight PDF fixture: `test/fixtures/sample.pdf`.
-- Run tests (requires Mongo running; uses `client_archiver_test` by default): `npm test`
-- Test covers upload endpoint response keys via Supertest.
+*   **رفع متعدد للملفات (Multi-Upload):** دعم رفع عدد كبير من ملفات PDF في طلب واحد (حتى 30 ملف، بحجم 50MB للملف).
+*   **ضغط الملفات المتقدم (PDF Optimization):** يستخدم أداة **Ghostscript** لتقليل جودة وحجم ملفات الـ PDF قبل أرشفتها لضمان أقل مساحة تخزين ممكنة.
+*   **الأرشفة المباشرة (Stream Archiving):** يعتمد على `archiver` مع `Streams` لإنشاء ملفات הـ ZIP مباشرة على القرص الصلب دون استهلاك الذاكرة (RAM).
+*   **حماية مسارات الملفات (Path Traversal Protection):** نظام حماية متقدم (`ensureWithinBase`) يمنع الوصول للملفات خارج المجلدات المخصصة.
+*   **التحقق الأمني من الملفات (Strict Validation):** التحقق من الملفات عبر (MIME type، الامتداد، وقراءة توقيع الملف الثنائي `%PDF`).
+*   **الحد من الطلبات (Rate Limiting):** حماية الـ API من هجمات الـ DDoS أو الـ Spam (بشكل افتراضي 200 طلب لكل 10 دقائق).
+*   **حساب التوفير (Savings Calculation):** مقارنة حجم الملفات الأصلي مع حجم الأرشيف وتقديم تقارير دقيقة عن مساحة التخزين الموفرة.
 
-## Project Structure
-- `src/` — app, routes, controllers, services, models, utils, middleware.
-- `uploads/temp` — transient uploads (cleaned after archiving).
-- `uploads/archives` — stored ZIP archives.
-- `test/` — jest + supertest, fixtures.
+---
 
-## Notes
-- ZIP creation uses streaming `archiver` + `createWriteStream` to avoid loading files in memory.
-- Paths are normalized and constrained to `UPLOAD_ARCHIVE_DIR` to prevent traversal.
-- Savings reported as bytes reduction and percentage based on original total vs archived ZIP size; upload up to 10 PDFs in one call to gauge storage impact.
-- Optional PDF optimization: enable `PDF_OPTIMIZE=true` (requires Ghostscript installed and reachable via `PDF_GS_PATH`), which runs a recompress step before zipping to shrink PDFs further.
+## 🏗 التقنيات المستخدمة وهيكلة المشروع (Tech Stack & Architecture)
+
+*   **بيئة التشغيل:** Node.js
+*   **إطار العمل:** Express.js
+*   **قاعدة البيانات:** MongoDB (عبر Mongoose)
+*   **رفع الملفات:** Multer
+*   **أدوات الضغط:** Ghostscript & Archiver
+*   **الأمان:** Helmet & Cors & express-rate-limit
+*   **التحقق من البيانات:** Zod
+
+### 📁 هيكلة المجلدات (Directory Structure)
+
+```text
+Archive-Backend/
+├── src/
+│   ├── config/             # إعدادات قاعدة البيانات والتطبيقات
+│   ├── controllers/        # المنطق البرمجي للـ Endpoints
+│   ├── middlewares/        # الدوال الوسيطة (معالجة الأخطاء، الـ Rate limit)
+│   ├── models/             # قوالب قاعدة البيانات (Mongoose Schemas)
+│   ├── routes/             # مسارات واجهة برمجة التطبيقات (API Routes)
+│   ├── services/           # الخدمات الأساسية (رفع الملفات، الأرشفة، قواعد البيانات)
+│   ├── utils/              # دوال مساعدة إضافية
+│   ├── app.js              # إعداد تطبيق الـ Express
+│   └── server.js           # نقطة البداية وتشغيل الخادم
+├── test/                   # ملفات الـ Unit Testing (Jest & Supertest)
+└── uploads/                # المجلدات الافتراضية للملفات المؤقتة والأرشيفات (يتم إنشاؤها)
+```
+
+---
+
+## 🚀 دليل التشغيل (Getting Started)
+
+### المتطلبات الأساسية (Prerequisites)
+1. **Node.js**: الإصدار 18 أو أحدث.
+2. **MongoDB**: قاعدة بيانات تعمل محلياً أو على السحابة (Atlas).
+3. **Ghostscript**: يجب تثبيته على نظام التشغيل لتفعيل ميزة ضغط الـ PDF. (يمكن تحميله للويندوز وإضافة مساره في المتغيرات).
+
+### التثبيت (Installation)
+
+1. **نسخ المشروع:**
+   ```bash
+   git clone <repository-url>
+   cd Archive-Backend
+   ```
+
+2. **تثبيت الحزم (Dependencies):**
+   ```bash
+   npm install
+   ```
+
+3. **إعداد متغيرات البيئة (Environment Variables):**
+   قم بإنشاء ملف `.env` (أو خذ نسخة من `.env.example`):
+   ```bash
+   cp .env.example .env
+   ```
+   **أهم المتغيرات التي يجب تعديلها:**
+   ```env
+   PORT=5000
+   MONGO_URI=mongodb://127.0.0.1:27017/client_archiver
+   UPLOAD_TEMP_DIR=D:\client-documents\temp
+   UPLOAD_ARCHIVE_DIR=D:\client-documents\archives
+   PDF_OPTIMIZE=true
+   PDF_GS_PATH="C:\Program Files\gs\gs10.06.0\bin\gswin64c.exe" # مسار الـ Ghostscript بجهازك
+   ```
+
+4. **تشغيل الخادم:**
+   ```bash
+   # وضع التطوير (مع التحديث التلقائي)
+   npm run dev
+
+   # وضع الإنتاج
+   npm start
+   ```
+
+---
+
+## 🔗 مسارات الـ API الأساسية (Endpoints)
+
+المسار الأساسي: `http://localhost:5000/api/archives`
+
+| النوع | المسار | الوصف |
+| :--- | :--- | :--- |
+| `POST` | `/:clientId/upload` | رفع ملفات PDF للعميل (form-data: `files`) |
+| `GET` | `/client/:clientId` | جلب قائمة الأرشيفات الخاصة بعميل معين |
+| `GET` | `/:archiveId` | عرض معلومات أرشيف محدد بنسبة التوفير |
+| `GET` | `/:archiveId/download` | تحميل ملف الـ ZIP مباشرة |
+| `DELETE` | `/:archiveId` | حذف الأرشيف وملفه نهائياً |
+| `GET` | `/health` | التأكد من عمل الخادم بكفاءة |
+
+### 💡 أمثلة على الاستخدام (Curl Examples)
+
+**رفع ملفات لأرشيف عميل (مثال العميل ACME):**
+```bash
+curl -X POST http://localhost:5000/api/archives/ACME/upload \
+  -F "files=@/path/to/file1.pdf" \
+  -F "files=@/path/to/file2.pdf"
+```
+
+**تحميل ملف مضغوط:**
+```bash
+curl -L -o ACME-archive.zip http://localhost:5000/api/archives/<archiveId>/download
+```
+
+---
+
+## 🧪 الاختبارات (Testing)
+
+المشروع يحتوي على اختبارات مدمجة باستخدام **Jest** و **Supertest**.
+لتشغيل الاختبارات:
+```bash
+npm test
+```
+*يجب التأكد من تشغيل MongoDB قبل بدء الاختبارات، سيقوم البرنامج بإنشاء قاعدة بيانات مخصصة للاختبار.*
+
+---
+
+## 📄 الترخيص (License)
+هذا المشروع متاح للاستخدام تحت ترخيص [MIT License](LICENSE).
