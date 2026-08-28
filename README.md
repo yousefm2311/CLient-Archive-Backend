@@ -10,7 +10,7 @@
   [![MongoDB](https://img.shields.io/badge/MongoDB-%234ea94b.svg?style=for-the-badge&logo=mongodb&logoColor=white)](https://www.mongodb.com/)
   [![Ghostscript](https://img.shields.io/badge/Ghostscript-Ghost-lightgrey?style=for-the-badge)](#)
 
-  [🇸🇦 عرض النسخة العربية (Arabic Version)](README.ar.md)
+  [AR عرض النسخة العربية (Arabic Version)](README.ar.md)
 </div>
 
 ---
