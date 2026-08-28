@@ -7,3 +7,4 @@ uploads/archives
 uploads/test-temp
 uploads/test-archives
 coverage
+.env
